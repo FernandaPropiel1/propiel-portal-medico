@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import PortalNav from '@/app/components/PortalNav';
 import AdminNav from './AdminNav';
 export const dynamic = 'force-dynamic';
-export default async function AdminLayout({ children }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
