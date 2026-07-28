@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { updateProduct, deleteProduct } from '../../actions';
+import { updateProduct, deleteProduct, formatKeyIngredients } from '../../actions';
 import ProductAssignment from './ProductAssignment';
 export const dynamic = 'force-dynamic';
 export default async function EditProductPage({ params }: { params: { id: string } }) {
@@ -28,6 +28,9 @@ export default async function EditProductPage({ params }: { params: { id: string
         <label>Ingrediente clave<input name="highlight_ingredient" defaultValue={product.highlight_ingredient ?? ''} /></label>
         <label>Para qué sirve<input name="highlight_benefit" defaultValue={product.highlight_benefit ?? ''} /></label>
         <label>Necesidades (separadas por coma)<input name="needs" defaultValue={(product.needs ?? []).join(', ')} /></label>
+        <label>Ingredientes clave (uno por línea; agrega " | concentración" si aplica, ej. "Ácido Azelaico | 15%")
+          <textarea name="key_ingredients" defaultValue={formatKeyIngredients(product.key_ingredients)} placeholder={'Ácido Hialurónico\nÁcido Azelaico | 15%\nNiacinamida | 10%'} />
+        </label>
         <label>Tipos de piel (separados por coma)<input name="skin_types" defaultValue={(product.skin_types ?? []).join(', ')} /></label>
         <label>Categoría / tipo de producto (step_label)<input name="step_label" defaultValue={product.step_label ?? ''} /></label>
         <label>Orden dentro de la categoría<input name="step_order" type="number" defaultValue={product.step_order ?? 99} /></label>
