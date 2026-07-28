@@ -29,7 +29,7 @@ export default async function EditProductPage({ params }: { params: { id: string
         <label>Para qué sirve<input name="highlight_benefit" defaultValue={product.highlight_benefit ?? ''} /></label>
         <label>Necesidades (separadas por coma)<input name="needs" defaultValue={(product.needs ?? []).join(', ')} /></label>
         <label>Ingredientes clave (uno por línea; agrega " | concentración" si aplica, ej. "Ácido Azelaico | 15%")
-          <textarea name="key_ingredients" defaultValue={formatKeyIngredients(product.key_ingredients)} placeholder={'Ácido Hialurónico\nÁcido Azelaico | 15%\nNiacinamida | 10%'} />
+          <textarea name="key_ingredients" defaultValue={await formatKeyIngredients(product.key_ingredients)} placeholder={'Ácido Hialurónico\nÁcido Azelaico | 15%\nNiacinamida | 10%'} />
         </label>
         <label>Tipos de piel (separados por coma)<input name="skin_types" defaultValue={(product.skin_types ?? []).join(', ')} /></label>
         <label>Categoría / tipo de producto (step_label)<input name="step_label" defaultValue={product.step_label ?? ''} /></label>
