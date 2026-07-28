@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { resolveHomePath } from '@/lib/roles';
 const SUPABASE_URL = 'https://bhuicxxirvgjtuvpmalq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodWljeHhpcnZnanR1dnBtYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNTY3MzEsImV4cCI6MjA5ODkzMjczMX0.p_Pz1ujsKxJQ0DIPrPVWrZf5m1Ia01u9rEi0wM-r5dc';
-export async function middleware(request: NextRequest) {
+export async function middleware(request) {
   let response = NextResponse.next({ request });
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, { cookies: { getAll() { return request.cookies.getAll(); }, setAll(cookiesToSet) { cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value)); response = NextResponse.next({ request }); cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)); } } });
   const { data: { user } } = await supabase.auth.getUser();
