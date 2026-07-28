@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import SignOutButton from './SignOutButton';
-export default function PortalNav({ doctorName, isAdmin, navItems }) {
+export default function PortalNav({ doctorName, isAdmin, navItems }: { doctorName: string; isAdmin?: boolean; navItems?: { href: string; label: string }[] }) {
   const items = navItems ?? [{ href: '/catalogo', label: 'Catálogo' }, { href: '/panel', label: 'Mi panel' }];
   return (
     <nav className="portal-nav">
