@@ -19,7 +19,7 @@ function parseKeyIngredients(value: FormDataEntryValue | null): KeyIngredient[] 
     })
     .filter((k) => k.name.length > 0);
 }
-export function formatKeyIngredients(list: KeyIngredient[] | null | undefined): string {
+export async function formatKeyIngredients(list: KeyIngredient[] | null | undefined): Promise<string> {
   return (list ?? []).map((k) => (k.concentration ? `${k.name} | ${k.concentration}` : k.name)).join('\n');
 }
 export async function createDoctor(formData: FormData) {
