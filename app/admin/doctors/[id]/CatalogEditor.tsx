@@ -2,13 +2,15 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { setCatalogItem } from '../../actions';
-export default function CatalogEditor({ doctorId, products, catalogItems }) {
+type Product = { id: number; title: string; step_label: string | null; step_order: number | null; brand_slug: string | null };
+type CatalogItem = { product_id: number; is_new_launch: boolean };
+export default function CatalogEditor({ doctorId, products, catalogItems }: { doctorId: string; products: Product[]; catalogItems: CatalogItem[] }) {
   const [, startTransition] = useTransition();
   const initialMap = new Map(catalogItems.map((c) => [c.product_id, c.is_new_launch]));
-  const [state, setState] = useState(() => new Map(products.map((p) => [p.id, { inCatalog: initialMap.has(p.id), isNew: initialMap.get(p.id) ?? false }])));
-  const groups = useMemo(() => { const map = new Map(); products.forEach((p) => { const label = p.step_label ?? 'Otros'; if (!map.has(label)) map.set(label, []); map.get(label).push(p); }); return Array.from(map.entries()); }, [products]);
-  function toggleInCatalog(productId) { const current = state.get(productId) ?? { inCatalog: false, isNew: false }; const next = { inCatalog: !current.inCatalog, isNew: current.isNew }; setState(new Map(state).set(productId, next)); startTransition(() => { setCatalogItem(doctorId, productId, next.inCatalog, next.isNew); }); }
-  function toggleNewLaunch(productId) { const current = state.get(productId) ?? { inCatalog: false, isNew: false }; const next = { inCatalog: current.inCatalog, isNew: !current.isNew }; setState(new Map(state).set(productId, next)); startTransition(() => { setCatalogItem(doctorId, productId, next.inCatalog, next.isNew); }); }
+  const [state, setState] = useState<Map<number, { inCatalog: boolean; isNew: boolean }>>(() => new Map(products.map((p) => [p.id, { inCatalog: initialMap.has(p.id), isNew: initialMap.get(p.id) ?? false }])));
+  const groups = useMemo(() => { const map = new Map<string, Product[]>(); products.forEach((p) => { const label = p.step_label ?? 'Otros'; if (!map.has(label)) map.set(label, []); map.get(label)!.push(p); }); return Array.from(map.entries()); }, [products]);
+  function toggleInCatalog(productId: number) { const current = state.get(productId) ?? { inCatalog: false, isNew: false }; const next = { inCatalog: !current.inCatalog, isNew: current.isNew }; setState(new Map(state).set(productId, next)); startTransition(() => { setCatalogItem(doctorId, productId, next.inCatalog, next.isNew); }); }
+  function toggleNewLaunch(productId: number) { const current = state.get(productId) ?? { inCatalog: false, isNew: false }; const next = { inCatalog: current.inCatalog, isNew: !current.isNew }; setState(new Map(state).set(productId, next)); startTransition(() => { setCatalogItem(doctorId, productId, next.inCatalog, next.isNew); }); }
   return (
     <div>
       {groups.map(([label, groupProducts]) => (
