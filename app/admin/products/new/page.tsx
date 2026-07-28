@@ -19,6 +19,9 @@ export default async function NewProductPage() {
         <label>Ingrediente clave<input name="highlight_ingredient" /></label>
         <label>Para qué sirve<input name="highlight_benefit" /></label>
         <label>Necesidades (separadas por coma)<input name="needs" /></label>
+        <label>Ingredientes clave (uno por línea; agrega " | concentración" si aplica, ej. "Ácido Azelaico | 15%")
+          <textarea name="key_ingredients" placeholder={'Ácido Hialurónico\nÁcido Azelaico | 15%\nNiacinamida | 10%'} />
+        </label>
         <label>Tipos de piel (separados por coma)<input name="skin_types" /></label>
         <label>Categoría / tipo de producto (step_label)<input name="step_label" /></label>
         <label>Orden dentro de la categoría<input name="step_order" type="number" defaultValue={99} /></label>
