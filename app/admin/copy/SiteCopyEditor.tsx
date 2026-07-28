@@ -1,12 +1,13 @@
 'use client';
 import { useState, useTransition } from 'react';
 import { updateSiteCopy } from '../actions';
-export default function SiteCopyEditor({ items }) {
+type Item = { key: string; label: string; value: string };
+export default function SiteCopyEditor({ items }: { items: Item[] }) {
   const [, startTransition] = useTransition();
-  const [state, setState] = useState(() => new Map(items.map((i) => [i.key, i.value])));
-  const [savedKey, setSavedKey] = useState(null);
-  function update(key, value) { setState(new Map(state).set(key, value)); }
-  function save(key) { const value = state.get(key) ?? ''; startTransition(() => { updateSiteCopy(key, value); }); setSavedKey(key); setTimeout(() => setSavedKey((k) => (k === key ? null : k)), 1500); }
+  const [state, setState] = useState<Map<string, string>>(() => new Map(items.map((i) => [i.key, i.value])));
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  function update(key: string, value: string) { setState(new Map(state).set(key, value)); }
+  function save(key: string) { const value = state.get(key) ?? ''; startTransition(() => { updateSiteCopy(key, value); }); setSavedKey(key); setTimeout(() => setSavedKey((k) => (k === key ? null : k)), 1500); }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {items.map((item) => (
