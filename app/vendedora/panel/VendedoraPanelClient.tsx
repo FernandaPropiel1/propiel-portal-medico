@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { createSellerReferral } from '@/app/admin/actions';
 
+type KeyIngredient = { name: string; concentration: string | null };
+
 type Product = {
   id: number;
   title: string;
@@ -12,10 +14,17 @@ type Product = {
   currency: string | null;
   image_url: string | null;
   needs: string[] | null;
+  key_ingredients: KeyIngredient[] | null;
   highlight_ingredient: string | null;
   highlight_benefit: string | null;
   available_cities: string[] | null;
 };
+
+const CATEGORY_PALETTE = [
+  '#eef2ee', '#fbeee3', '#f3ece1', '#eef0f7', '#fbf0ee',
+  '#eef4f0', '#f6efe4', '#efeef7', '#f9eef2', '#eef7f5',
+  '#f4f0e6', '#eef2f7',
+];
 
 type Promoted = { id: string; note: string | null; products: Product };
 type Material = { id: string; title: string; category: string | null; file_url: string };
@@ -67,6 +76,8 @@ export default function VendedoraPanelClient({
 }) {
   const [tab, setTab] = useState<'delmes' | 'buscar' | 'referidos' | 'capacitaciones'>('delmes');
   const [query, setQuery] = useState('');
+  const [browseType, setBrowseType] = useState<'ingrediente' | 'problema'>('ingrediente');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const cityScoped = useMemo(() => {
@@ -84,6 +95,7 @@ export default function VendedoraPanelClient({
         p.highlight_ingredient,
         p.highlight_benefit,
         ...(p.needs ?? []),
+        ...(p.key_ingredients ?? []).map((k) => k.name),
       ]
         .filter(Boolean)
         .join(' ')
@@ -91,6 +103,43 @@ export default function VendedoraPanelClient({
       return haystack.includes(q);
     });
   }, [cityScoped, query]);
+
+  // ---- Buscar alternativa: vista por ingrediente / por padecimiento ----
+  const ingredientEntries = useMemo(() => {
+    const counts = new Map<string, number>();
+    cityScoped.forEach((p) => {
+      (p.key_ingredients ?? []).forEach((k) => {
+        const name = k.name?.trim();
+        if (!name) return;
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      });
+    });
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  }, [cityScoped]);
+
+  const needEntries = useMemo(() => {
+    const counts = new Map<string, number>();
+    cityScoped.forEach((p) => {
+      (p.needs ?? []).forEach((n) => {
+        const name = n?.trim();
+        if (!name) return;
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      });
+    });
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  }, [cityScoped]);
+
+  const categoryResults = useMemo(() => {
+    if (!selectedCategory) return [];
+    if (browseType === 'ingrediente') {
+      return cityScoped.filter((p) => (p.key_ingredients ?? []).some((k) => k.name?.trim() === selectedCategory));
+    }
+    return cityScoped.filter((p) => (p.needs ?? []).some((n) => n?.trim() === selectedCategory));
+  }, [cityScoped, browseType, selectedCategory]);
+
+  function concentrationFor(p: Product, ingredientName: string) {
+    return (p.key_ingredients ?? []).find((k) => k.name?.trim() === ingredientName)?.concentration ?? null;
+  }
 
   // ---- Referidos: búsqueda por nombre ----
   const [personQuery, setPersonQuery] = useState('');
@@ -256,34 +305,100 @@ export default function VendedoraPanelClient({
         <div className="panel-card">
           <h2>Buscar alternativa por ingrediente o padecimiento</h2>
           <p className="admin-note" style={{ marginBottom: 12 }}>
-            Si el cliente pide un producto agotado (ej. "la Vitamina C de Obagi"), busca aquí por
-            ingrediente (ej. "vitamina C") o padecimiento (ej. "manchas", "acné") y te muestra las
-            opciones del catálogo{sellerCity ? ` disponibles en tu sucursal (${sellerCity === 'MTY' ? 'Monterrey' : sellerCity})` : ''}.
+            Si el cliente pide un producto agotado (ej. "la Vitamina C de Obagi" o "ácido azelaico al 15%"),
+            busca aquí por texto, o explora por ingrediente o padecimiento{sellerCity ? ` — opciones disponibles en tu sucursal (${sellerCity === 'MTY' ? 'Monterrey' : sellerCity})` : ''}.
           </p>
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); if (e.target.value.trim() !== '') setSelectedCategory(null); }}
             placeholder="ej. vitamina C, acné, hidratación..."
             style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', width: '100%', maxWidth: 420, marginBottom: 16 }}
           />
-          {query.trim() === '' ? (
-            <p className="results-placeholder">Escribe un ingrediente o padecimiento para ver opciones.</p>
-          ) : searchResults.length === 0 ? (
-            <p className="results-placeholder">No encontré productos con eso. Intenta con otra palabra.</p>
-          ) : (
-            <div className="product-grid">
-              {searchResults.map((p) => (
-                <div key={p.id} className="product-card" style={{ cursor: 'default' }}>
-                  {p.image_url && <Image src={p.image_url} alt={p.title} width={300} height={300} unoptimized />}
-                  <div className="product-card-info">
-                    <div className="product-card-title">{p.title}</div>
-                    {p.vendor && <div className="product-card-vendor">{p.vendor}</div>}
-                    {p.price != null && (
-                      <div className="product-card-price">${Number(p.price).toLocaleString('es-MX')} {p.currency ?? 'MXN'}</div>
-                    )}
+
+          {query.trim() !== '' ? (
+            searchResults.length === 0 ? (
+              <p className="results-placeholder">No encontré productos con eso. Intenta con otra palabra.</p>
+            ) : (
+              <div className="product-grid">
+                {searchResults.map((p) => (
+                  <div key={p.id} className="product-card" style={{ cursor: 'default' }}>
+                    {p.image_url && <Image src={p.image_url} alt={p.title} width={300} height={300} unoptimized />}
+                    <div className="product-card-info">
+                      <div className="product-card-title">{p.title}</div>
+                      {p.vendor && <div className="product-card-vendor">{p.vendor}</div>}
+                      {p.price != null && (
+                        <div className="product-card-price">${Number(p.price).toLocaleString('es-MX')} {p.currency ?? 'MXN'}</div>
+                      )}
+                    </div>
                   </div>
+                ))}
+              </div>
+            )
+          ) : selectedCategory ? (
+            <div>
+              <button type="button" className="category-back-btn" onClick={() => setSelectedCategory(null)}>
+                ← Volver a {browseType === 'ingrediente' ? 'ingredientes' : 'padecimientos'}
+              </button>
+              <div className="step-group-title" style={{ marginBottom: 12 }}>{selectedCategory} · {categoryResults.length} producto{categoryResults.length !== 1 ? 's' : ''}</div>
+              {categoryResults.length === 0 ? (
+                <p className="results-placeholder">No hay productos disponibles en tu sucursal para esta categoría.</p>
+              ) : (
+                <div className="product-grid">
+                  {categoryResults.map((p) => {
+                    const conc = browseType === 'ingrediente' ? concentrationFor(p, selectedCategory) : null;
+                    return (
+                      <div key={p.id} className="product-card" style={{ cursor: 'default' }}>
+                        {p.image_url && <Image src={p.image_url} alt={p.title} width={300} height={300} unoptimized />}
+                        <div className="product-card-info">
+                          <div className="product-card-title">{p.title}</div>
+                          {p.vendor && <div className="product-card-vendor">{p.vendor}</div>}
+                          {conc && <div className="product-card-concentration">{selectedCategory} {conc}</div>}
+                          {p.price != null && (
+                            <div className="product-card-price">${Number(p.price).toLocaleString('es-MX')} {p.currency ?? 'MXN'}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
+            </div>
+          ) : (
+            <div>
+              <div className="browse-subtabs">
+                <button
+                  type="button"
+                  className={`browse-subtab ${browseType === 'ingrediente' ? 'active' : ''}`}
+                  onClick={() => setBrowseType('ingrediente')}
+                >
+                  Por ingrediente
+                </button>
+                <button
+                  type="button"
+                  className={`browse-subtab ${browseType === 'problema' ? 'active' : ''}`}
+                  onClick={() => setBrowseType('problema')}
+                >
+                  Por padecimiento
+                </button>
+              </div>
+              {(browseType === 'ingrediente' ? ingredientEntries : needEntries).length === 0 ? (
+                <p className="results-placeholder">Todavía no hay productos categorizados para esta vista.</p>
+              ) : (
+                <div className="category-grid">
+                  {(browseType === 'ingrediente' ? ingredientEntries : needEntries).map(([name, count], i) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className="category-card"
+                      style={{ background: CATEGORY_PALETTE[i % CATEGORY_PALETTE.length] }}
+                      onClick={() => setSelectedCategory(name)}
+                    >
+                      <span className="category-card-name">{name}</span>
+                      <span className="category-card-count">{count} producto{count !== 1 ? 's' : ''}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -45,7 +45,7 @@ export default async function VendedoraPanelPage() {
 
   const { data: allProducts } = await supabase
     .from('products')
-    .select('id, title, vendor, price, currency, image_url, needs, highlight_ingredient, highlight_benefit, available_cities')
+    .select('id, title, vendor, price, currency, image_url, needs, key_ingredients, highlight_ingredient, highlight_benefit, available_cities')
     .order('title', { ascending: true });
 
   const { data: doctors } = await supabase
