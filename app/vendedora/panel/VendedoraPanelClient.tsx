@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { createSellerReferral } from '@/app/admin/actions';
 
 type KeyIngredient = { name: string; concentration: string | null };
@@ -18,7 +19,34 @@ type Product = {
   highlight_ingredient: string | null;
   highlight_benefit: string | null;
   available_cities: string[] | null;
+  stock_cities: string[] | null;
+  step_label: string | null;
 };
+
+const STEP_ORDER = [
+  'Limpiadores', 'Tónicos', 'Sueros', 'Cremas', 'Contorno de Ojos', 'Labios',
+  'Protectores', 'Corporal', 'Capilar', 'Medicamento', 'Suplementos',
+  'Exfoliantes', 'Maquillaje', 'Accesorios', 'Cuidado Íntimo', 'Acné',
+];
+
+function stepRank(label: string | null) {
+  const i = STEP_ORDER.indexOf(label ?? '');
+  return i === -1 ? 999 : i;
+}
+
+function stockStatus(p: Product, sellerCity: string | null): 'tienda' | 'pedir' {
+  const stock = p.stock_cities ?? [];
+  if (sellerCity) return stock.includes(sellerCity) ? 'tienda' : 'pedir';
+  return stock.length > 0 ? 'tienda' : 'pedir';
+}
+
+function StockBadge({ status }: { status: 'tienda' | 'pedir' }) {
+  return (
+    <span className={`stock-badge ${status === 'tienda' ? 'stock-badge-tienda' : 'stock-badge-pedir'}`}>
+      {status === 'tienda' ? 'En tienda' : 'Se puede pedir'}
+    </span>
+  );
+}
 
 const CATEGORY_PALETTE = [
   '#eef2ee', '#fbeee3', '#f3ece1', '#eef0f7', '#fbf0ee',
@@ -136,6 +164,26 @@ export default function VendedoraPanelClient({
     }
     return cityScoped.filter((p) => (p.needs ?? []).some((n) => n?.trim() === selectedCategory));
   }, [cityScoped, browseType, selectedCategory]);
+
+  const categoryGroups = useMemo(() => {
+    const byStep = new Map<string, Product[]>();
+    categoryResults.forEach((p) => {
+      const key = p.step_label ?? 'Otros';
+      if (!byStep.has(key)) byStep.set(key, []);
+      byStep.get(key)!.push(p);
+    });
+    return Array.from(byStep.entries())
+      .sort((a, b) => stepRank(a[0]) - stepRank(b[0]))
+      .map(([label, products]) => ({
+        label,
+        products: [...products].sort((a, b) => {
+          const sa = stockStatus(a, sellerCity) === 'tienda' ? 0 : 1;
+          const sb = stockStatus(b, sellerCity) === 'tienda' ? 0 : 1;
+          if (sa !== sb) return sa - sb;
+          return a.title.localeCompare(b.title, 'es');
+        }),
+      }));
+  }, [categoryResults, sellerCity]);
 
   function concentrationFor(p: Product, ingredientName: string) {
     return (p.key_ingredients ?? []).find((k) => k.name?.trim() === ingredientName)?.concentration ?? null;
@@ -321,7 +369,8 @@ export default function VendedoraPanelClient({
             ) : (
               <div className="product-grid">
                 {searchResults.map((p) => (
-                  <div key={p.id} className="product-card" style={{ cursor: 'default' }}>
+                  <Link key={p.id} href={`/vendedora/producto/${p.id}`} className="product-card">
+                    <StockBadge status={stockStatus(p, sellerCity)} />
                     {p.image_url && <Image src={p.image_url} alt={p.title} width={300} height={300} unoptimized />}
                     <div className="product-card-info">
                       <div className="product-card-title">{p.title}</div>
@@ -330,7 +379,7 @@ export default function VendedoraPanelClient({
                         <div className="product-card-price">${Number(p.price).toLocaleString('es-MX')} {p.currency ?? 'MXN'}</div>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )
@@ -343,24 +392,30 @@ export default function VendedoraPanelClient({
               {categoryResults.length === 0 ? (
                 <p className="results-placeholder">No hay productos disponibles en tu sucursal para esta categoría.</p>
               ) : (
-                <div className="product-grid">
-                  {categoryResults.map((p) => {
-                    const conc = browseType === 'ingrediente' ? concentrationFor(p, selectedCategory) : null;
-                    return (
-                      <div key={p.id} className="product-card" style={{ cursor: 'default' }}>
-                        {p.image_url && <Image src={p.image_url} alt={p.title} width={300} height={300} unoptimized />}
-                        <div className="product-card-info">
-                          <div className="product-card-title">{p.title}</div>
-                          {p.vendor && <div className="product-card-vendor">{p.vendor}</div>}
-                          {conc && <div className="product-card-concentration">{selectedCategory} {conc}</div>}
-                          {p.price != null && (
-                            <div className="product-card-price">${Number(p.price).toLocaleString('es-MX')} {p.currency ?? 'MXN'}</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                categoryGroups.map((group) => (
+                  <div key={group.label} style={{ marginBottom: 22 }}>
+                    <div className="step-group-title" style={{ marginBottom: 8, fontSize: 13 }}>{group.label}</div>
+                    <div className="product-grid">
+                      {group.products.map((p) => {
+                        const conc = browseType === 'ingrediente' ? concentrationFor(p, selectedCategory) : null;
+                        return (
+                          <Link key={p.id} href={`/vendedora/producto/${p.id}`} className="product-card">
+                            <StockBadge status={stockStatus(p, sellerCity)} />
+                            {p.image_url && <Image src={p.image_url} alt={p.title} width={300} height={300} unoptimized />}
+                            <div className="product-card-info">
+                              <div className="product-card-title">{p.title}</div>
+                              {p.vendor && <div className="product-card-vendor">{p.vendor}</div>}
+                              {conc && <div className="product-card-concentration">{selectedCategory} {conc}</div>}
+                              {p.price != null && (
+                                <div className="product-card-price">${Number(p.price).toLocaleString('es-MX')} {p.currency ?? 'MXN'}</div>
+                              )}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           ) : (
