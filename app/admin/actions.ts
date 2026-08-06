@@ -184,10 +184,10 @@ export async function createSellerReferral(sellerId: string, formData: FormData)
   const note = String(formData.get('note') ?? '') || null;
   if (!folio) throw new Error('Falta el folio de Microsip.');
   const record = { seller_id: sellerId, folio, sale_date: saleDate, referred_doctor_id: doctorIdRaw || null, referred_ambassador_id: ambassadorIdRaw || null, note };
-  const { error } = await supabase.from('seller_sale_records').insert(record);
+  const { data: inserted, error } = await supabase.from('seller_sale_records').insert(record).select('id').single();
   if (error) throw new Error(error.message);
   if (ambassadorIdRaw) {
-    const { error: ambError } = await supabase.from('ambassador_sales').insert({ ambassador_id: ambassadorIdRaw, product_id: null, amount: 0, sale_date: saleDate, note: `Venta en tienda física · folio ${folio}` });
+    const { error: ambError } = await supabase.from('ambassador_sales').insert({ ambassador_id: ambassadorIdRaw, product_id: null, amount: 0, sale_date: saleDate, note: `Venta en tienda física · folio ${folio}`, seller_sale_record_id: inserted.id });
     if (ambError) throw new Error(ambError.message);
     revalidatePath('/embajadora/panel'); revalidatePath(`/admin/ambassadors/${ambassadorIdRaw}`); revalidatePath('/admin/ambassadors');
   }
@@ -202,9 +202,60 @@ export async function confirmDoctorReferralAmount(recordId: string, formData: Fo
   const commissionPct = formData.get('commission_pct') ? Number(formData.get('commission_pct')) : null;
   const { error: updateError } = await supabase.from('seller_sale_records').update({ amount, commission_pct: commissionPct, synced_to_doctor_sales: true }).eq('id', recordId);
   if (updateError) throw new Error(updateError.message);
-  const { error: saleError } = await supabase.from('doctor_sales').insert({ doctor_id: record.referred_doctor_id, product_id: null, amount, sale_date: record.sale_date, note: `Folio ${record.folio} · tienda física${commissionPct ? ` · ${commissionPct}% comisión` : ''}` });
+  const { error: saleError } = await supabase.from('doctor_sales').insert({ doctor_id: record.referred_doctor_id, product_id: null, amount, sale_date: record.sale_date, note: `Folio ${record.folio} · tienda física${commissionPct ? ` · ${commissionPct}% comisión` : ''}`, seller_sale_record_id: recordId });
   if (saleError) throw new Error(saleError.message);
   revalidatePath('/admin/seller-sales'); revalidatePath(`/admin/doctors/${record.referred_doctor_id}`); revalidatePath('/panel');
+}
+export async function updateSellerSaleRecord(recordId: string, formData: FormData) {
+  const supabase = createClient();
+  const { data: record } = await supabase.from('seller_sale_records').select('*').eq('id', recordId).maybeSingle();
+  if (!record) throw new Error('No se encontró el folio.');
+  const folio = String(formData.get('folio') ?? '').trim();
+  if (!folio) throw new Error('Falta el folio de Microsip.');
+  const saleDate = String(formData.get('sale_date') ?? record.sale_date);
+  const note = String(formData.get('note') ?? '') || null;
+  const updates: Record<string, unknown> = { folio, sale_date: saleDate, note };
+  let amount: number | null = record.amount;
+  let commissionPct: number | null = record.commission_pct;
+  if (record.referred_doctor_id && formData.has('amount')) {
+    amount = formData.get('amount') ? Number(formData.get('amount')) : null;
+    commissionPct = formData.get('commission_pct') ? Number(formData.get('commission_pct')) : null;
+    updates.amount = amount;
+    updates.commission_pct = commissionPct;
+  }
+  const { error } = await supabase.from('seller_sale_records').update(updates).eq('id', recordId);
+  if (error) throw new Error(error.message);
+
+  if (record.referred_doctor_id && record.synced_to_doctor_sales) {
+    const { error: dsError } = await supabase
+      .from('doctor_sales')
+      .update({ amount: amount ?? 0, sale_date: saleDate, note: `Folio ${folio} · tienda física${commissionPct ? ` · ${commissionPct}% comisión` : ''}` })
+      .eq('seller_sale_record_id', recordId);
+    if (dsError) throw new Error(dsError.message);
+  }
+  if (record.referred_ambassador_id) {
+    const { error: asError } = await supabase
+      .from('ambassador_sales')
+      .update({ sale_date: saleDate, note: `Venta en tienda física · folio ${folio}` })
+      .eq('seller_sale_record_id', recordId);
+    if (asError) throw new Error(asError.message);
+  }
+
+  revalidatePath('/admin/seller-sales');
+  revalidatePath(`/admin/seller-sales/${recordId}`);
+  revalidatePath('/vendedora/panel');
+  if (record.referred_doctor_id) { revalidatePath(`/admin/doctors/${record.referred_doctor_id}`); revalidatePath('/panel'); }
+  if (record.referred_ambassador_id) { revalidatePath(`/admin/ambassadors/${record.referred_ambassador_id}`); revalidatePath('/embajadora/panel'); }
+}
+export async function deleteSellerSaleRecord(recordId: string) {
+  const supabase = createClient();
+  const { data: record } = await supabase.from('seller_sale_records').select('referred_doctor_id, referred_ambassador_id').eq('id', recordId).maybeSingle();
+  const { error } = await supabase.from('seller_sale_records').delete().eq('id', recordId);
+  if (error) throw new Error(error.message);
+  revalidatePath('/admin/seller-sales');
+  revalidatePath('/vendedora/panel');
+  if (record?.referred_doctor_id) { revalidatePath(`/admin/doctors/${record.referred_doctor_id}`); revalidatePath('/panel'); }
+  if (record?.referred_ambassador_id) { revalidatePath(`/admin/ambassadors/${record.referred_ambassador_id}`); revalidatePath('/embajadora/panel'); }
 }
 export async function createMonthlyFeature(formData: FormData) {
   const supabase = createClient();
