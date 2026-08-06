@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { confirmDoctorReferralAmount } from '../actions';
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,7 @@ export default async function AdminSellerSalesPage() {
                   </select>
                 </label>
                 <button type="submit" className="btn-primary">Confirmar y registrar</button>
+                <Link href={`/admin/seller-sales/${r.id}`} className="admin-product-link">Editar / borrar folio</Link>
               </form>
             );
           })}
@@ -55,7 +57,7 @@ export default async function AdminSellerSalesPage() {
         ) : (
           <table className="admin-table">
             <thead>
-              <tr><th>Fecha</th><th>Folio</th><th>Vendedora</th><th>Referido</th><th>Monto</th><th>Comisión</th></tr>
+              <tr><th>Fecha</th><th>Folio</th><th>Vendedora</th><th>Referido</th><th>Monto</th><th>Comisión</th><th></th></tr>
             </thead>
             <tbody>
               {otherRecords.map((r: any) => (
@@ -66,6 +68,7 @@ export default async function AdminSellerSalesPage() {
                   <td>{r.doctors?.full_name ?? r.ambassadors?.full_name ?? '— directa —'}</td>
                   <td>{r.amount != null ? `$${Number(r.amount).toLocaleString('es-MX')}` : '—'}</td>
                   <td>{r.commission_pct != null ? `${r.commission_pct}%` : '—'}</td>
+                  <td><Link href={`/admin/seller-sales/${r.id}`} className="admin-product-link">Editar / borrar</Link></td>
                 </tr>
               ))}
             </tbody>
