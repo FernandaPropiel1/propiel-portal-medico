@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { createSellerReferral } from '@/app/admin/actions';
+import { createSellerReferral, updateSellerSaleRecord, deleteSellerSaleRecord } from '@/app/admin/actions';
 
 type KeyIngredient = { name: string; concentration: string | null };
 
@@ -231,21 +231,36 @@ export default function VendedoraPanelClient({
     setTimeout(() => setSaved(false), 2500);
   }
 
-  function submitDirectSale(e: React.FormEvent) {
+  // ---- Referidos: editar / borrar folios ya registrados ----
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const [editFolio, setEditFolio] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editNote, setEditNote] = useState('');
+
+  function startEditSale(s: SaleRecord) {
+    setEditingSaleId(s.id);
+    setEditFolio(s.folio);
+    setEditDate(s.sale_date.slice(0, 10));
+    setEditNote(s.note ?? '');
+  }
+
+  function submitEditSale(e: React.FormEvent, id: string) {
     e.preventDefault();
     const formData = new FormData();
-    formData.set('folio', folio);
-    formData.set('sale_date', saleDate);
-    formData.set('referred_doctor_id', '');
-    formData.set('referred_ambassador_id', '');
-    formData.set('note', note);
+    formData.set('folio', editFolio);
+    formData.set('sale_date', editDate);
+    formData.set('note', editNote);
     startTransition(() => {
-      createSellerReferral(sellerId, formData);
+      updateSellerSaleRecord(id, formData);
     });
-    setFolio('');
-    setNote('');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setEditingSaleId(null);
+  }
+
+  function handleDeleteSale(id: string) {
+    if (typeof window !== 'undefined' && !window.confirm('¿Borrar este folio? No se puede deshacer.')) return;
+    startTransition(() => {
+      deleteSellerSaleRecord(id);
+    });
   }
 
   return (
@@ -536,30 +551,37 @@ export default function VendedoraPanelClient({
             </div>
           )}
 
-          <div className="panel-card">
-            <h2>Venta directa (sin referido)</h2>
-            <p className="admin-note" style={{ marginBottom: 12 }}>Si la venta no viene de ningún médico o embajadora, solo registra el folio aquí.</p>
-            <form onSubmit={submitDirectSale} className="admin-form">
-              <label>Folio de Microsip<input value={folio} onChange={(e) => setFolio(e.target.value)} required /></label>
-              <label>Fecha<input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} /></label>
-              <label>Nota (opcional)<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
-              <button type="submit" className="btn-primary">Registrar</button>
-            </form>
-          </div>
-
           {saleRecords.length > 0 && (
             <div className="panel-card">
               <h2>Tus últimos folios registrados</h2>
               <table className="sales-table">
-                <thead><tr><th>Fecha</th><th>Folio</th><th>Referido</th><th>Nota</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Folio</th><th>Referido</th><th>Nota</th><th></th></tr></thead>
                 <tbody>
                   {saleRecords.map((s) => (
-                    <tr key={s.id}>
-                      <td>{new Date(s.sale_date).toLocaleDateString('es-MX')}</td>
-                      <td>{s.folio}</td>
-                      <td>{s.doctors?.full_name ?? s.ambassadors?.full_name ?? '— directa —'}</td>
-                      <td>{s.note ?? ''}</td>
-                    </tr>
+                    editingSaleId === s.id ? (
+                      <tr key={s.id}>
+                        <td colSpan={5}>
+                          <form onSubmit={(e) => submitEditSale(e, s.id)} className="admin-form" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', padding: '10px 0' }}>
+                            <label style={{ minWidth: 120 }}>Folio<input value={editFolio} onChange={(e) => setEditFolio(e.target.value)} required /></label>
+                            <label style={{ minWidth: 140 }}>Fecha<input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} /></label>
+                            <label style={{ minWidth: 160, flex: 1 }}>Nota<input value={editNote} onChange={(e) => setEditNote(e.target.value)} /></label>
+                            <button type="submit" className="btn-primary">Guardar</button>
+                            <button type="button" className="btn-secondary" onClick={() => setEditingSaleId(null)}>Cancelar</button>
+                          </form>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={s.id}>
+                        <td>{new Date(s.sale_date).toLocaleDateString('es-MX')}</td>
+                        <td>{s.folio}</td>
+                        <td>{s.doctors?.full_name ?? s.ambassadors?.full_name ?? '— directa —'}</td>
+                        <td>{s.note ?? ''}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button type="button" className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12, marginRight: 6 }} onClick={() => startEditSale(s)}>Editar</button>
+                          <button type="button" className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleDeleteSale(s.id)}>Borrar</button>
+                        </td>
+                      </tr>
+                    )
                   ))}
                 </tbody>
               </table>
